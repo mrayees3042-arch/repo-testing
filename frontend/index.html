@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RepoGen - S7 Communication Tool</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="app-container" id="app-container">
+        <header class="app-header">
+            <h1>
+                RepoGen S7 Communication Tool 
+                <span class="version-badge">v1.0.7</span>
+            </h1>
+            <div id="connection-indicator" class="status-badge disconnected" role="status" aria-live="polite">DISCONNECTED</div>
+        </header>
+
+        <nav class="tabs" role="tablist" aria-label="Main Navigation">
+            <button class="tab-btn active" id="tab-btn-connection" role="tab" aria-selected="true" aria-controls="tab-connection" data-target="tab-connection">Connection</button>
+            <button class="tab-btn" id="tab-btn-tags" role="tab" aria-selected="false" aria-controls="tab-tags" data-target="tab-tags">Tag Tables</button>
+        </nav>
+
+        <main class="app-main">
+            <!-- Connection Tab -->
+            <section id="tab-connection" class="tab-content active" role="tabpanel" aria-labelledby="tab-btn-connection">
+                <div class="connection-grid">
+                    <!-- Config Panel -->
+                    <div class="panel config-panel">
+                        <h2>S7 PLC Connection</h2>
+                        <form id="connection-form" onsubmit="return false;">
+                            <div class="form-group">
+                                <label for="ip-address">IP Address</label>
+                                <input type="text" id="ip-address" value="192.168.0.1" placeholder="192.168.0.1" autocomplete="off" spellcheck="false">
+                            </div>
+                            
+                            <div class="form-row">
+                                <div class="form-group half">
+                                    <label for="rack">Rack</label>
+                                    <input type="number" id="rack" value="0" min="0" max="7">
+                                </div>
+                                <div class="form-group half">
+                                    <label for="slot">Slot</label>
+                                    <input type="number" id="slot" value="1" min="0" max="31">
+                                </div>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="port">TCP Port</label>
+                                <input type="number" id="port" value="102" min="1" max="65535">
+                            </div>
+
+                            <div class="main-conn-actions">
+                                <button type="button" id="btn-connect" class="btn primary btn-large">Connect</button>
+                                <div class="secondary-conn-row">
+                                    <button type="button" id="btn-disconnect" class="btn danger" disabled>Disconnect</button>
+                                    <button type="button" id="btn-reconnect" class="btn warning" disabled>Reconnect</button>
+                                </div>
+                            </div>
+
+                            <!-- Diagnostics Collapsible -->
+                            <details class="diagnostics-accordion" id="diag-details">
+                                <summary class="diagnostics-summary">Diagnostics & Manual Tests</summary>
+                                <div class="diagnostics-body">
+                                    <div class="diag-item">
+                                        <button type="button" id="btn-ping" class="btn secondary">Ping PLC</button>
+                                        <p>Check whether the device responds on the network.</p>
+                                    </div>
+                                    <div class="diag-item">
+                                        <button type="button" id="btn-test-s7" class="btn secondary">Test S7 Communication</button>
+                                        <p>Check whether an S7 session can be established.</p>
+                                    </div>
+                                </div>
+                            </details>
+                        </form>
+                    </div>
+
+                    <!-- Status Panel -->
+                    <div class="panel status-panel">
+                        <h2>Connection Status</h2>
+                        <div class="status-grid">
+                            <div class="status-item">
+                                <span class="label">S7 State:</span>
+                                <span id="s7-state" class="value disconnected" role="status" aria-live="polite">DISCONNECTED</span>
+                            </div>
+                            <div class="status-item">
+                                <span class="label">CPU State:</span>
+                                <span id="cpu-state" class="value unknown" role="status" aria-live="polite">UNKNOWN</span>
+                            </div>
+                            <div class="status-item">
+                                <span class="label">Network Ping:</span>
+                                <span id="ping-state" class="value unknown" role="status">NOT TESTED</span>
+                            </div>
+                            <div class="status-item">
+                                <span class="label">S7 Test:</span>
+                                <span id="s7-test-state" class="value unknown" role="status">NOT TESTED</span>
+                            </div>
+                        </div>
+
+                        <h2>Communication Log</h2>
+                        <div class="log-container" tabindex="0" role="region" aria-label="Communication Log Output">
+                            <ul id="log-list" aria-live="polite">
+                                <li class="log-empty">No connection activity yet.</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Tag Tables Tab -->
+            <section id="tab-tags" class="tab-content" role="tabpanel" aria-labelledby="tab-btn-tags">
+                <div class="tags-layout">
+                    <!-- Wide Sidebar (~230px, hidden on narrow screens) -->
+                    <aside class="tags-sidebar" id="tags-sidebar" aria-label="Tag Tables Sidebar">
+                        <div class="tags-sidebar-header">
+                            <h2>Tables</h2>
+                            <button type="button" id="btn-new-table-sidebar" class="btn secondary btn-small" title="Create New Table">+ New</button>
+                        </div>
+                        <ul id="table-list" class="tags-sidebar-list" role="listbox" aria-label="Tag Tables">
+                            <!-- Table list injected here -->
+                        </ul>
+                    </aside>
+
+                    <!-- Main Tags Content -->
+                    <div class="tags-main-content">
+                        <div class="tags-toolbar">
+                            <div class="tags-toolbar-left">
+                                <!-- Compact Dropdown for narrow screens -->
+                                <div class="compact-table-select-wrap">
+                                    <label for="tag-table-select" class="sr-only" style="display:none;">Select Tag Table</label>
+                                    <select id="tag-table-select" aria-label="Select Tag Table">
+                                        <option value="">Select a Table...</option>
+                                    </select>
+                                </div>
+                                <button type="button" id="btn-toggle-poll" class="btn primary" disabled>Start Monitoring</button>
+                                <button type="button" id="btn-add-tag" class="btn secondary" disabled>+ Add Tag</button>
+                            </div>
+                            <div class="tags-toolbar-right">
+                                <button type="button" id="btn-new-table" class="btn secondary compact-table-select-wrap">New Table</button>
+                                <button type="button" id="btn-delete-table" class="btn danger" disabled>Delete Table</button>
+                            </div>
+                        </div>
+
+                        <!-- Monitoring Diagnostics Bar -->
+                        <div id="read-diagnostics" class="poll-diag-bar" role="status" aria-live="polite">
+                            <span><strong>Status:</strong> Not monitoring</span>
+                            <span><strong>Last Poll:</strong> Never</span>
+                            <span><strong>Attempted:</strong> 0</span>
+                            <span><strong>Success:</strong> 0</span>
+                            <span><strong>Failed:</strong> 0</span>
+                        </div>
+
+                        <!-- Data Table Container -->
+                        <div class="table-responsive" tabindex="0" role="region" aria-label="Tags Data Table">
+                            <table class="tags-table" id="tags-table">
+                                <thead>
+                                    <tr>
+                                        <th scope="col">Name</th>
+                                        <th scope="col">Address</th>
+                                        <th scope="col">Data Type</th>
+                                        <th scope="col">Access</th>
+                                        <th scope="col">Value</th>
+                                        <th scope="col">Quality</th>
+                                        <th scope="col">Latency</th>
+                                        <th scope="col">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tags-tbody">
+                                    <tr>
+                                        <td colspan="8" style="text-align: center; color: var(--text-muted); padding: 24px;">
+                                            Select or create a tag table to view tags.
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Modal 1: New / Edit Table -->
+    <div id="modal-table" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="modal-table-title">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3 id="modal-table-title">New Tag Table</h3>
+                <button type="button" class="btn btn-small secondary btn-close-modal" aria-label="Close dialog">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="modal-table-name">Table Name</label>
+                    <input type="text" id="modal-table-name" placeholder="e.g. Tank System 1" autocomplete="off">
+                    <span id="modal-table-name-error" class="field-error"></span>
+                </div>
+                <div class="form-group">
+                    <label for="modal-table-desc">Description (optional)</label>
+                    <input type="text" id="modal-table-desc" placeholder="e.g. Main PLC diagnostic tags">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn secondary btn-close-modal">Cancel</button>
+                <button type="button" id="btn-save-table" class="btn primary">Save Table</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal 2: Add / Edit Tag -->
+    <div id="modal-tag" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="modal-tag-title">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3 id="modal-tag-title">Add Tag</h3>
+                <button type="button" class="btn btn-small secondary btn-close-modal" aria-label="Close dialog">&times;</button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="modal-tag-id">
+                
+                <div class="form-group">
+                    <label for="modal-tag-name">Tag Name</label>
+                    <input type="text" id="modal-tag-name" placeholder="e.g. Pump Running Status" autocomplete="off">
+                    <span id="modal-tag-name-error" class="field-error"></span>
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group half">
+                        <label for="modal-tag-area">Memory Area</label>
+                        <select id="modal-tag-area">
+                            <option value="M">Memory (M)</option>
+                            <option value="I">Input (I)</option>
+                            <option value="Q">Output (Q)</option>
+                            <option value="DB">Data Block (DB)</option>
+                        </select>
+                    </div>
+                    <div class="form-group half" id="group-db-number" style="display: none;">
+                        <label for="modal-tag-db-number">DB Number</label>
+                        <input type="number" id="modal-tag-db-number" min="1" max="65535" value="1">
+                        <span id="modal-tag-db-error" class="field-error"></span>
+                    </div>
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group half">
+                        <label for="modal-tag-type">Data Type</label>
+                        <select id="modal-tag-type">
+                            <option value="BOOL">BOOL</option>
+                            <option value="BYTE">BYTE</option>
+                            <option value="SINT">SINT</option>
+                            <option value="USINT">USINT</option>
+                            <option value="INT">INT</option>
+                            <option value="UINT">UINT</option>
+                            <option value="WORD">WORD</option>
+                            <option value="DINT">DINT</option>
+                            <option value="UDINT">UDINT</option>
+                            <option value="DWORD">DWORD</option>
+                            <option value="REAL">REAL</option>
+                        </select>
+                    </div>
+                    <div class="form-group half">
+                        <label for="modal-tag-access">Access</label>
+                        <select id="modal-tag-access">
+                            <option value="Read/Write">Read/Write</option>
+                            <option value="Read Only">Read Only</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="modal-tag-address">Address Offset</label>
+                    <input type="text" id="modal-tag-address" value="0.0" autocomplete="off" spellcheck="false" aria-describedby="tag-address-help tag-address-preview">
+                    <span id="tag-address-help" class="help-text">Byte.bit, for example 0.0</span>
+                    <div id="tag-address-preview" class="preview-pill" aria-live="polite">Preview: M0.0</div>
+                    <span id="modal-tag-address-error" class="field-error"></span>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn secondary btn-close-modal">Cancel</button>
+                <button type="button" id="btn-save-tag" class="btn primary">Save Tag</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal 3: Write Value (Redesigned) -->
+    <div id="modal-write" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="modal-write-title">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3 id="modal-write-title">Write Tag Value</h3>
+                <button type="button" class="btn btn-small secondary btn-close-modal" aria-label="Close dialog">&times;</button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="write-tag-id">
+                
+                <!-- Destination & Tag Metadata -->
+                <div class="write-meta-box">
+                    <div class="meta-row">
+                        <span class="meta-label">Tag Name</span>
+                        <span id="write-meta-name" class="meta-val">---</span>
+                    </div>
+                    <div class="meta-row">
+                        <span class="meta-label">PLC Destination</span>
+                        <span id="write-meta-dest" class="meta-val">---</span>
+                    </div>
+                    <div class="meta-row">
+                        <span class="meta-label">Resolved Address</span>
+                        <span id="write-meta-addr" class="meta-val">---</span>
+                    </div>
+                    <div class="meta-row">
+                        <span class="meta-label">Data Type</span>
+                        <span id="write-meta-type" class="meta-val">---</span>
+                    </div>
+                    <div class="meta-row" style="grid-column: span 2;">
+                        <span class="meta-label">Current Status</span>
+                        <span id="write-meta-current-status" class="meta-val">Unavailable</span>
+                    </div>
+                </div>
+
+                <!-- Q Area Hardware Warning -->
+                <div id="write-warning-q" class="write-warning-banner" style="display: none;">
+                    <strong>CAUTION:</strong> Writing to Output memory (Q) directly changes physical PLC outputs and may affect active machinery.
+                </div>
+
+                <!-- Input Group: BOOL -->
+                <div id="write-input-bool-group" class="form-group" style="display: none;">
+                    <label for="write-bool-select">Proposed Value</label>
+                    <select id="write-bool-select" aria-describedby="write-input-error">
+                        <option value="" disabled selected>Select value to write...</option>
+                        <option value="false">False (0)</option>
+                        <option value="true">True (1)</option>
+                    </select>
+                </div>
+
+                <!-- Input Group: Numeric / Text -->
+                <div id="write-input-numeric-group" class="form-group">
+                    <label for="write-numeric-input">Proposed Value</label>
+                    <input type="text" id="write-numeric-input" placeholder="Enter value" autocomplete="off" spellcheck="false" aria-describedby="write-input-error write-numeric-hint">
+                    <span id="write-numeric-hint" class="help-text"></span>
+                </div>
+
+                <span id="write-input-error" class="field-error" style="display: none;"></span>
+
+                <!-- Comparison Card -->
+                <div class="comparison-card">
+                    <div>
+                        <span class="meta-label">Current</span><br>
+                        <strong id="compare-current-val">Unavailable</strong>
+                    </div>
+                    <div class="comparison-arrow">&rarr;</div>
+                    <div>
+                        <span class="meta-label">Proposed</span><br>
+                        <strong id="compare-proposed-val">None</strong>
+                    </div>
+                </div>
+
+                <!-- In-Dialog Result / Status Feedback -->
+                <div id="write-status-msg" class="write-status-msg" role="alert"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn secondary btn-close-modal">Cancel</button>
+                <button type="button" id="btn-execute-write" class="btn primary" disabled>Write Value</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
