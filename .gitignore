@@ -10,6 +10,8 @@ __pycache__/
 
 # PyInstaller / Build Output
 build/
+dist/
+*.log
 *.spec.bak
 
 # Volatile Runtime Database

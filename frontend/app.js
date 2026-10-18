@@ -89,69 +89,30 @@ document.addEventListener("DOMContentLoaded", () => {
     // In-memory tag dictionary (tag_id -> tag object)
     const tagDataMap = new Map();
 
-    // Helper: Wait for pywebview API or use test mock if running directly in a browser
+    // Never substitute simulated operations for the desktop bridge.
+    let bridgeReady = null;
     const waitForApi = () => {
-        return new Promise((resolve) => {
-            if (window.pywebview && window.pywebview.api) {
-                resolve(window.pywebview.api);
-            } else {
-                window.addEventListener('pywebviewready', () => {
-                    resolve(window.pywebview.api);
-                });
-                // Fallback for standalone browser preview / testing
-                setTimeout(() => {
-                    if (window.pywebview && window.pywebview.api) {
-                        resolve(window.pywebview.api);
-                    } else if (window.__MOCK_API__) {
-                        resolve(window.__MOCK_API__);
-                    } else {
-                        // Default mock data matching audit scenario
-                        const mockTables = [{ id: 1, name: "aa", description: "Default Tag Table" }];
-                        const mockTags = [
-                            { id: 1, table_id: 1, name: "a", area: "DB", db_number: 1, address: "0.0", data_type: "REAL", access_mode: "Read/Write" },
-                            { id: 2, table_id: 1, name: "Pump_Run", area: "M", db_number: 0, address: "0.0", data_type: "BOOL", access_mode: "Read/Write" },
-                            { id: 3, table_id: 1, name: "Motor_Speed", area: "M", db_number: 0, address: "2", data_type: "INT", access_mode: "Read Only" },
-                            { id: 4, table_id: 1, name: "User's Special Tag", area: "M", db_number: 0, address: "4", data_type: "INT", access_mode: "Read/Write" }
-                        ];
-                        const mockApi = {
-                            save_config: async () => true,
-                            ping: async () => ({ success: true, message: "Success", latency: 2 }),
-                            test_s7_communication: async () => ({ success: true, message: "S7 Communication Successful", latency: 3, cpu_state: "UNKNOWN — CPU state unavailable" }),
-                            connect: async () => ({ success: true, message: "Connected successfully" }),
-                            disconnect: async () => ({ success: true, message: "Disconnected" }),
-                            reconnect: async () => ({ success: true, message: "Connected successfully" }),
-                            get_status: async () => ({
-                                id: "default", name: "Test PLC", ip: "192.168.0.1", rack: 0, slot: 1, port: 102,
-                                state: "DISCONNECTED", cpu_state: "UNKNOWN", cpu_state_error: null,
-                                last_s7_success_time: null, last_error: null,
-                                diagnostics: []
-                            }),
-                            get_all_tables: async () => mockTables,
-                            get_tags_for_table: async () => mockTags,
-                            set_active_table: async () => true,
-                            set_polling: async () => true,
-                            get_live_tags: async () => ({ tags: {}, diagnostics: { last_cycle: "Never", attempted: 0, success: 0, failed: 0, last_error: "None" } }),
-                            create_table: async (name, desc) => ({ success: true, id: Date.now() }),
-                            delete_table: async () => ({ success: true }),
-                            create_tag: async () => ({ success: true, id: Date.now() }),
-                            update_tag: async () => ({ success: true }),
-                            delete_tag: async () => ({ success: true }),
-                            get_tag_details_for_write: async (tagId) => {
-                                const t = mockTags.find(x => x.id === tagId) || mockTags[0];
-                                return {
-                                    success: true, tag: t,
-                                    resolved_address: formatDisplayAddress(t),
-                                    current_value: null, quality: "UNKNOWN", timestamp: null,
-                                    plc_connected: false, plc_ip: "192.168.0.1", plc_port: 102
-                                };
-                            },
-                            write_tag: async () => ({ success: true, message: "Write verified (Read back: 0)" })
-                        };
-                        resolve(mockApi);
-                    }
-                }, 200);
-            }
+        if (window.pywebview && window.pywebview.api) return Promise.resolve(window.pywebview.api);
+        if (bridgeReady) return bridgeReady;
+        bridgeReady = new Promise((resolve) => {
+        if (window.pywebview && window.pywebview.api) {
+            resolve(window.pywebview.api);
+            return;
+        }
+        indicator.textContent = "BACKEND UNAVAILABLE â€” waiting for application";
+        document.querySelectorAll("button").forEach(button => {
+            button.dataset.bridgeDisabled = String(button.disabled);
+            button.disabled = true;
         });
+        window.addEventListener("pywebviewready", () => {
+            document.querySelectorAll("button[data-bridge-disabled]").forEach(button => {
+                button.disabled = button.dataset.bridgeDisabled === "true";
+                delete button.dataset.bridgeDisabled;
+            });
+            resolve(window.pywebview.api);
+        }, { once: true });
+    });
+        return bridgeReady;
     };
 
     // --- Modal Management with Accessible Focus & Escape Trapping ---
@@ -194,7 +155,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
         // Tab focus trap
         if (e.key === "Tab") {
-            const focusable = Array.from(activeModal.querySelectorAll('input:not([type=hidden]), select, textarea, button:not([disabled])'));
+            const focusable = Array.from(activeModal.querySelectorAll('input:not([type=hidden]), select, textarea, button:not([disabled])')).filter(el => el.getClientRects().length > 0);
             if (focusable.length === 0) return;
             const first = focusable[0];
             const last = focusable[focusable.length - 1];
@@ -274,6 +235,11 @@ document.addEventListener("DOMContentLoaded", () => {
         }
         
         isConnected = (state === "CONNECTED");
+        const guidance = document.getElementById("connection-guidance");
+        if (guidance) guidance.textContent = isConnected
+            ? "Connected. Open Tag Tables to monitor your values."
+            : state === "DISCONNECTED" ? "Connect to read CPU status and live values."
+            : "Check the activity log below for connection details.";
         btnConnect.disabled = isConnected;
         btnDisconnect.disabled = !isConnected;
         btnReconnect.disabled = (state === "DISCONNECTED");
@@ -430,7 +396,7 @@ document.addEventListener("DOMContentLoaded", () => {
             btnTogglePoll.disabled = true;
             tagsTbody.innerHTML = `
                 <tr>
-                    <td colspan="8" style="text-align: center; color: var(--text-muted); padding: 24px;">
+                    <td colspan="5" style="text-align: center; color: var(--text-muted); padding: 24px;">
                         No tag tables yet. Click <strong>+ New</strong> to create your first table.
                     </td>
                 </tr>
@@ -474,7 +440,7 @@ document.addEventListener("DOMContentLoaded", () => {
         if (tags.length === 0) {
             tagsTbody.innerHTML = `
                 <tr>
-                    <td colspan="8" style="text-align: center; color: var(--text-muted); padding: 24px;">
+                    <td colspan="5" style="text-align: center; color: var(--text-muted); padding: 24px;">
                         No tags defined in this table. Click <strong>+ Add Tag</strong> to define one.
                     </td>
                 </tr>
@@ -500,15 +466,6 @@ document.addEventListener("DOMContentLoaded", () => {
             tdAddr.textContent = formatDisplayAddress(t);
             tr.appendChild(tdAddr);
             
-            // Data Type cell
-            const tdType = document.createElement("td");
-            tdType.textContent = t.data_type;
-            tr.appendChild(tdType);
-            
-            // Access mode cell
-            const tdAccess = document.createElement("td");
-            tdAccess.textContent = t.access_mode;
-            tr.appendChild(tdAccess);
             
             // Value cell
             const tdVal = document.createElement("td");
@@ -522,11 +479,6 @@ document.addEventListener("DOMContentLoaded", () => {
             tdQual.textContent = "---";
             tr.appendChild(tdQual);
             
-            // Latency cell
-            const tdLat = document.createElement("td");
-            tdLat.className = "tag-lat";
-            tdLat.textContent = "---";
-            tr.appendChild(tdLat);
             
             // Actions cell
             const tdActions = document.createElement("td");
@@ -554,7 +506,27 @@ document.addEventListener("DOMContentLoaded", () => {
             btnDel.className = "btn btn-small danger";
             btnDel.textContent = "Delete tag";
             btnDel.addEventListener("click", () => deleteTag(t.id, t.name));
-            actionsDiv.appendChild(btnDel);
+            const details = document.createElement("details");
+            details.className = "tag-details";
+            const summary = document.createElement("summary");
+            summary.textContent = "Details";
+            summary.setAttribute("aria-label", `Details for ${t.name}`);
+            details.appendChild(summary);
+            const metadata = document.createElement("div");
+            metadata.className = "tag-metadata";
+            const description = document.createElement("span");
+            description.textContent = `${t.data_type} · ${t.access_mode}`;
+            metadata.appendChild(description);
+            const latency = document.createElement("span");
+            latency.textContent = "Latency: ";
+            const latencyValue = document.createElement("span");
+            latencyValue.className = "tag-lat";
+            latencyValue.textContent = "—";
+            latency.appendChild(latencyValue);
+            metadata.appendChild(latency);
+            metadata.appendChild(btnDel);
+            details.appendChild(metadata);
+            tdName.appendChild(details);
             
             tdActions.appendChild(actionsDiv);
             tr.appendChild(tdActions);
@@ -934,8 +906,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
     writeBoolSelect.addEventListener("change", () => {
         const check = validateWriteInput();
-        if (isConnected && check.valid) {
-            btnExecuteWrite.disabled = false;
+        if (!isWriteInFlight && isConnected && check.valid) {
+            btnExecuteWrite.disabled = isWriteInFlight || !isConnected;
         } else {
             btnExecuteWrite.disabled = true;
         }
@@ -943,21 +915,21 @@ document.addEventListener("DOMContentLoaded", () => {
 
     writeNumericInput.addEventListener("input", () => {
         const check = validateWriteInput();
-        if (isConnected && check.valid) {
-            btnExecuteWrite.disabled = false;
+        if (!isWriteInFlight && isConnected && check.valid) {
+            btnExecuteWrite.disabled = isWriteInFlight || !isConnected;
         } else {
             btnExecuteWrite.disabled = true;
         }
     });
 
     btnExecuteWrite.addEventListener("click", async () => {
+        if (isWriteInFlight || !isConnected) return;
         const check = validateWriteInput();
         if (!check.valid) return;
 
         const tagId = parseInt(writeTagId.value, 10);
-        const api = await waitForApi();
-
         isWriteInFlight = true;
+        const api = await waitForApi();
         btnExecuteWrite.disabled = true;
         btnExecuteWrite.textContent = "Writing...";
         writeStatusMsg.className = "write-status-msg";
@@ -977,7 +949,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     setTimeout(() => closeModal(modalWrite), 1200);
                 }
             } else {
-                btnExecuteWrite.disabled = false;
+                btnExecuteWrite.disabled = isWriteInFlight || !isConnected;
                 if ((res.message || "").toLowerCase().includes("verification failed")) {
                     writeStatusMsg.className = "write-status-msg warning";
                 } else {
@@ -987,10 +959,10 @@ document.addEventListener("DOMContentLoaded", () => {
             }
         } catch (e) {
             isWriteInFlight = false;
-            btnExecuteWrite.disabled = false;
+            btnExecuteWrite.disabled = isWriteInFlight || !isConnected;
             btnExecuteWrite.textContent = "Write Value";
             writeStatusMsg.className = "write-status-msg error";
-            writeStatusMsg.textContent = `Error: ${e.message || str(e)}`;
+            writeStatusMsg.textContent = `Error: ${e.message || String(e)}`;
         }
     });
 

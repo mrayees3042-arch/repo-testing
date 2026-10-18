@@ -1,11 +1,16 @@
 import sqlite3
 import os
+import sys
 import json
 import logging
 
 logger = logging.getLogger(__name__)
 
-DB_PATH = "repogen.db"
+# Preserve the portable app's database beside its executable, regardless of
+# the shortcut/launcher working directory. Source runs use the project root.
+_data_dir = (os.path.dirname(sys.executable) if getattr(sys, "frozen", False)
+             else os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+DB_PATH = os.path.join(_data_dir, "repogen.db")
 
 class Database:
     def __init__(self):

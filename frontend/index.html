@@ -5,13 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>RepoGen - S7 Communication Tool</title>
     <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="premium.css">
 </head>
 <body>
     <div class="app-container" id="app-container">
         <header class="app-header">
             <h1>
-                RepoGen S7 Communication Tool 
-                <span class="version-badge">v1.0.7</span>
+                RepoGen <span class="brand-caption">S7 workspace</span>
+                <span class="version-badge">v1.1.0</span>
             </h1>
             <div id="connection-indicator" class="status-badge disconnected" role="status" aria-live="polite">DISCONNECTED</div>
         </header>
@@ -27,7 +28,7 @@
                 <div class="connection-grid">
                     <!-- Config Panel -->
                     <div class="panel config-panel">
-                        <h2>S7 PLC Connection</h2>
+                        <h2>Connect your PLC</h2><p class="panel-intro">Set the destination to start reading live values.</p>
                         <form id="connection-form" onsubmit="return false;">
                             <div class="form-group">
                                 <label for="ip-address">IP Address</label>
@@ -53,8 +54,8 @@
                             <div class="main-conn-actions">
                                 <button type="button" id="btn-connect" class="btn primary btn-large">Connect</button>
                                 <div class="secondary-conn-row">
-                                    <button type="button" id="btn-disconnect" class="btn danger" disabled>Disconnect</button>
-                                    <button type="button" id="btn-reconnect" class="btn warning" disabled>Reconnect</button>
+                                    <button type="button" id="btn-disconnect" class="btn secondary" disabled>Disconnect</button>
+                                    <button type="button" id="btn-reconnect" class="btn secondary" disabled>Reconnect</button>
                                 </div>
                             </div>
 
@@ -77,7 +78,7 @@
 
                     <!-- Status Panel -->
                     <div class="panel status-panel">
-                        <h2>Connection Status</h2>
+                        <h2>Device overview</h2><p class="panel-intro" id="connection-guidance">Connect to read CPU status and live values.</p>
                         <div class="status-grid">
                             <div class="status-item">
                                 <span class="label">S7 State:</span>
@@ -137,7 +138,7 @@
                             </div>
                             <div class="tags-toolbar-right">
                                 <button type="button" id="btn-new-table" class="btn secondary compact-table-select-wrap">New Table</button>
-                                <button type="button" id="btn-delete-table" class="btn danger" disabled>Delete Table</button>
+                                <details class="table-menu"><summary>Table options</summary><div class="table-menu-body"><button type="button" id="btn-delete-table" class="btn danger" disabled>Delete Table</button></div></details>
                             </div>
                         </div>
 
@@ -157,17 +158,17 @@
                                     <tr>
                                         <th scope="col">Name</th>
                                         <th scope="col">Address</th>
-                                        <th scope="col">Data Type</th>
-                                        <th scope="col">Access</th>
+
+
                                         <th scope="col">Value</th>
                                         <th scope="col">Quality</th>
-                                        <th scope="col">Latency</th>
+
                                         <th scope="col">Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody id="tags-tbody">
                                     <tr>
-                                        <td colspan="8" style="text-align: center; color: var(--text-muted); padding: 24px;">
+                                        <td colspan="5" style="text-align: center; color: var(--text-muted); padding: 24px;">
                                             Select or create a tag table to view tags.
                                         </td>
                                     </tr>

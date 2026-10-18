@@ -1,4 +1,17 @@
-# RepoGen S7 — Siemens S7 PLC Communication & Diagnostics Tool (v1)
+# RepoGen S7 — Siemens S7 PLC Communication & Diagnostics Tool (v1.1.0)
+
+## v1.1.0 update
+
+- Refined desktop typography, spacing, neutral disabled controls, and responsive tag actions.
+- Expandable tag details and table options keep routine actions prominent.
+- Dialog actions remain visible in compact windows; keyboard focus and reduced-motion support are preserved.
+- Manual disconnect cancels pending reconnect attempts; cached values become stale when monitoring stops.
+- REAL writes verify the encoded float32 value, and the frontend waits for the actual backend bridge.
+- Portable builds resolve the database beside the executable.
+
+Build this version with `python -m PyInstaller --noconfirm RepoGen-S7-v1.1.0.spec`.
+Run offline regression checks from the repository root with `python work/review_checks.py` and `node work/frontend_regressions.cjs`.
+Generated executables, runtime databases, and logs are excluded from source control.
 
 RepoGen S7 is a desktop GUI utility built for Siemens S7 PLC communication, diagnostics, tag monitoring, and read/write operations. It supports S7-300, S7-400, S7-1200, S7-1500, and PLCSIM/NetToPLCSim environments.
 

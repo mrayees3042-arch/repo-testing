@@ -1,5 +1,6 @@
 import time
 import math
+import struct
 from backend.database import Database
 import backend.tag_utils as tag_utils
 
@@ -36,8 +37,15 @@ class TagManager:
                     "latency": 0
                 }
 
+    def mark_stale(self, reason):
+        for tag_id, cached in list(self.live_tags.items()):
+            if cached.get("value") is not None:
+                self.live_tags[tag_id] = {**cached, "quality": "STALE", "error": reason}
+
     def set_polling(self, enabled, table_id=None):
         self.polling_enabled = enabled
+        if not enabled:
+            self.mark_stale("Monitoring stopped")
         if table_id is not None:
             self.set_active_table(table_id)
 
@@ -170,7 +178,7 @@ class TagManager:
                 f_val = float(str(value).strip())
                 if math.isnan(f_val) or math.isinf(f_val):
                     return False, "Non-finite REAL values (NaN/Infinity) are not permitted."
-                norm_value = f_val
+                norm_value = struct.unpack(">f", struct.pack(">f", f_val))[0]
             elif data_type in ["BYTE", "USINT"]:
                 i_val = int(value)
                 if not (0 <= i_val <= 255):
@@ -201,7 +209,7 @@ class TagManager:
                 if not (0 <= i_val <= 4294967295):
                     return False, f"Value {i_val} out of bounds for {data_type} (0 to 4294967295)."
                 norm_value = i_val
-        except (ValueError, TypeError) as e:
+        except (ValueError, TypeError, OverflowError, struct.error) as e:
             return False, f"Invalid value for {data_type}: {str(e)}"
             
         try:
@@ -222,7 +230,7 @@ class TagManager:
             if data_type == "REAL":
                 read_f = float(val)
                 req_f = float(norm_value)
-                if not math.isclose(read_f, req_f, rel_tol=1e-4, abs_tol=1e-3):
+                if not math.isfinite(read_f) or read_f != req_f:
                     return False, f"Write sent; verification failed. Read back: {read_f} (expected {req_f})"
             elif data_type == "BOOL":
                 val_bool = tag_utils.normalize_bool(val)

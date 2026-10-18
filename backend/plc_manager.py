@@ -24,6 +24,8 @@ class PLCManager:
         if plc_id not in self.plcs:
             self.plcs[plc_id] = {
                 "id": plc_id,
+                "operation_lock": threading.RLock(),
+                "generation": 0,
                 "client": S7Client(),
                 "state": "DISCONNECTED",
                 "diagnostics": [],
@@ -58,47 +60,53 @@ class PLCManager:
                     if not client: continue
                     
                     if plc["state"] == "CONNECTED":
-                        # 1. Transport check
-                        if not client.connected or not client.is_connected():
-                            plc["state"] = "CONNECTION LOST"
-                            plc["cpu_state"] = "UNKNOWN"
-                            if plc["last_logged_state"] != "CONNECTION LOST":
-                                self.log_diagnostic(plc_id, "CONNECTION LOST", "FAIL", "Transport socket disconnected")
-                                plc["last_logged_state"] = "CONNECTION LOST"
-                                plc["last_logged_error"] = "Transport socket disconnected"
-                            continue
-                            
-                        # 2. Lightweight health check (query CPU state)
-                        try:
-                            success, state, diag_msg = client.get_cpu_state()
-                        except Exception as e:
-                            success = False
-                            state = "UNKNOWN"
-                            diag_msg = str(e)
-                            
-                        if not client.connected or not client.is_connected():
-                            plc["state"] = "CONNECTION LOST"
-                            plc["cpu_state"] = "UNKNOWN"
-                            if plc["last_logged_state"] != "CONNECTION LOST":
-                                self.log_diagnostic(plc_id, "CONNECTION LOST", "FAIL", "Transport connection lost during health check")
-                                plc["last_logged_state"] = "CONNECTION LOST"
-                                plc["last_logged_error"] = "Transport connection lost"
-                            continue
-                            
-                        # If transport is intact:
-                        if success:
-                            plc["last_s7_success_time"] = datetime.datetime.now().strftime("%H:%M:%S")
-                            if plc["cpu_state"] != state:
-                                plc["cpu_state"] = state
-                                plc["cpu_state_error"] = None
-                                self.log_diagnostic(plc_id, "CPU STATE", "PASS" if "RUN" in state or "STOP" in state else "INFO", state)
-                            plc["last_logged_state"] = "CONNECTED"
-                            plc["last_logged_error"] = None
-                        else:
-                            # CPU state query failed but socket is alive
-                            plc["cpu_state"] = "UNKNOWN — CPU state unavailable"
-                            plc["cpu_state_error"] = state
-                            
+                        with plc["operation_lock"]:
+                            if plc["state"] != "CONNECTED":
+                                continue
+                            generation = plc["generation"]
+                            # 1. Transport check
+                            if not client.connected or not client.is_connected():
+                                plc["state"] = "CONNECTION LOST"
+                                plc["cpu_state"] = "UNKNOWN"
+                                if plc["last_logged_state"] != "CONNECTION LOST":
+                                    self.log_diagnostic(plc_id, "CONNECTION LOST", "FAIL", "Transport socket disconnected")
+                                    plc["last_logged_state"] = "CONNECTION LOST"
+                                    plc["last_logged_error"] = "Transport socket disconnected"
+                                continue
+
+                            # 2. Lightweight health check (query CPU state)
+                            try:
+                                success, state, diag_msg = client.get_cpu_state()
+                            except Exception as e:
+                                success = False
+                                state = "UNKNOWN"
+                                diag_msg = str(e)
+
+                            if not client.connected or not client.is_connected():
+                                plc["state"] = "CONNECTION LOST"
+                                plc["cpu_state"] = "UNKNOWN"
+                                if plc["last_logged_state"] != "CONNECTION LOST":
+                                    self.log_diagnostic(plc_id, "CONNECTION LOST", "FAIL", "Transport connection lost during health check")
+                                    plc["last_logged_state"] = "CONNECTION LOST"
+                                    plc["last_logged_error"] = "Transport connection lost"
+                                continue
+
+                            if generation != plc["generation"]:
+                                continue
+                            # If transport is intact:
+                            if success:
+                                plc["last_s7_success_time"] = datetime.datetime.now().strftime("%H:%M:%S")
+                                if plc["cpu_state"] != state:
+                                    plc["cpu_state"] = state
+                                    plc["cpu_state_error"] = None
+                                    self.log_diagnostic(plc_id, "CPU STATE", "PASS" if "RUN" in state or "STOP" in state else "INFO", state)
+                                plc["last_logged_state"] = "CONNECTED"
+                                plc["last_logged_error"] = None
+                            else:
+                                # CPU state query failed but socket is alive
+                                plc["cpu_state"] = "UNKNOWN â€” CPU state unavailable"
+                                plc["cpu_state_error"] = state
+
                     elif plc["state"] in ["CONNECTION LOST", "CONNECTION FAILED"]:
                         # Auto-recovery: throttle reconnects to once every 2 seconds
                         if current_time - plc.get("last_reconnect_attempt", 0) > 2.0:
@@ -108,36 +116,40 @@ class PLCManager:
                                 self.log_diagnostic(plc_id, "RECONNECTING", "INFO", f"{plc['ip']}:{plc['port']}")
                                 plc["last_logged_state"] = "RECONNECTING"
                                 
+                            generation = plc["generation"]
                             # Lightweight TCP check first (0.25s timeout)
                             tcp_ok, tcp_err = client.test_tcp_connection(plc["ip"], plc["port"], timeout=0.250)
                             
-                            if tcp_ok:
-                                success, msg, latency = client.connect(plc["ip"], plc["rack"], plc["slot"], plc["port"])
-                                if success:
-                                    plc["state"] = "CONNECTED"
-                                    plc["last_s7_success_time"] = datetime.datetime.now().strftime("%H:%M:%S")
-                                    
-                                    try:
-                                        state_success, cpu_state, diag_msg = client.get_cpu_state()
-                                    except Exception:
-                                        state_success = True
-                                        cpu_state = "UNKNOWN — CPU state unavailable"
+                            with plc["operation_lock"]:
+                                if generation != plc["generation"] or plc["state"] not in ("CONNECTION LOST", "CONNECTION FAILED"):
+                                    continue
+                                if tcp_ok:
+                                    success, msg, latency = client.connect(plc["ip"], plc["rack"], plc["slot"], plc["port"])
+                                    if success:
+                                        plc["state"] = "CONNECTED"
+                                        plc["last_s7_success_time"] = datetime.datetime.now().strftime("%H:%M:%S")
                                         
-                                    plc["cpu_state"] = cpu_state
-                                    plc["cpu_state_error"] = None if state_success else cpu_state
-                                    self.log_diagnostic(plc_id, "S7 RECONNECTED", "PASS", f"Latency {latency}ms | CPU: {cpu_state}")
-                                    plc["last_logged_state"] = "CONNECTED"
-                                    plc["last_logged_error"] = None
+                                        try:
+                                            state_success, cpu_state, diag_msg = client.get_cpu_state()
+                                        except Exception:
+                                            state_success = True
+                                            cpu_state = "UNKNOWN â€” CPU state unavailable"
+
+                                        plc["cpu_state"] = cpu_state
+                                        plc["cpu_state_error"] = None if state_success else cpu_state
+                                        self.log_diagnostic(plc_id, "S7 RECONNECTED", "PASS", f"Latency {latency}ms | CPU: {cpu_state}")
+                                        plc["last_logged_state"] = "CONNECTED"
+                                        plc["last_logged_error"] = None
+                                    else:
+                                        plc["last_error"] = msg
+                                        if plc["last_logged_error"] != msg:
+                                            self.log_diagnostic(plc_id, "RECONNECT FAIL", "FAIL", msg)
+                                            plc["last_logged_error"] = msg
                                 else:
-                                    plc["last_error"] = msg
-                                    if plc["last_logged_error"] != msg:
-                                        self.log_diagnostic(plc_id, "RECONNECT FAIL", "FAIL", msg)
-                                        plc["last_logged_error"] = msg
-                            else:
-                                if plc["last_logged_error"] != tcp_err:
-                                    self.log_diagnostic(plc_id, "TCP UNREACHABLE", "FAIL", tcp_err)
-                                    plc["last_logged_error"] = tcp_err
-                
+                                    if plc["last_logged_error"] != tcp_err:
+                                        self.log_diagnostic(plc_id, "TCP UNREACHABLE", "FAIL", tcp_err)
+                                        plc["last_logged_error"] = tcp_err
+
                 # Check tag polling schedule (every 500ms)
                 if current_time - self.last_tag_poll >= 0.5:
                     self.tag_manager.poll_tags()
@@ -214,9 +226,17 @@ class PLCManager:
             self.log_diagnostic(plc_id, "CPU STATE", "INFO", state_msg)
             
         test_client.disconnect()
-        return True, "S7 Communication Successful", latency, state_msg if state_success else "UNKNOWN — CPU state unavailable", None
+        return True, "S7 Communication Successful", latency, state_msg if state_success else "UNKNOWN â€” CPU state unavailable", None
         
     def connect(self, plc_id):
+        plc = self.get_plc(plc_id)
+        if not plc:
+            return False, "PLC not found"
+        plc["generation"] += 1
+        with plc["operation_lock"]:
+            return self._connect_locked(plc_id)
+
+    def _connect_locked(self, plc_id):
         """Establish persistent connection."""
         plc = self.get_plc(plc_id)
         if not plc: return False, "PLC not found"
@@ -230,7 +250,7 @@ class PLCManager:
             state_success, cpu_state, diag_msg = client.get_cpu_state()
             plc["state"] = "CONNECTED"
             plc["last_s7_success_time"] = datetime.datetime.now().strftime("%H:%M:%S")
-            plc["cpu_state"] = cpu_state if state_success else "UNKNOWN — CPU state unavailable"
+            plc["cpu_state"] = cpu_state if state_success else "UNKNOWN â€” CPU state unavailable"
             plc["cpu_state_error"] = None if state_success else cpu_state
             
             self.log_diagnostic(plc_id, "CONNECT", "PASS", f"Connected in {latency}ms (CPU: {plc['cpu_state']})")
@@ -241,10 +261,19 @@ class PLCManager:
             return False, msg
             
     def disconnect(self, plc_id):
+        plc = self.get_plc(plc_id)
+        if not plc:
+            return False, "PLC not found"
+        plc["generation"] += 1
+        with plc["operation_lock"]:
+            return self._disconnect_locked(plc_id)
+
+    def _disconnect_locked(self, plc_id):
         """Disconnect persistent connection."""
         plc = self.get_plc(plc_id)
         if not plc: return False, "PLC not found"
         
+        self.tag_manager.mark_stale("PLC disconnected")
         plc["state"] = "DISCONNECTING"
         client = plc["client"]
         

@@ -135,9 +135,15 @@ class AppService:
         if not tag:
             return {"success": False, "message": "Tag not found."}
         t = dict(tag)
-        live = self.manager.tag_manager.live_tags.get(tag_id, {})
+        live = dict(self.manager.tag_manager.live_tags.get(tag_id, {}))
         plc = self.manager.get_plc("default")
         
+        if live.get("value") is not None and (
+            not self.manager.tag_manager.polling_enabled or not plc or
+            plc["state"] != "CONNECTED" or not plc["client"].is_connected()
+        ):
+            live["quality"] = "STALE"
+
         try:
             resolved = tag_utils.resolve_address(t["area"], t.get("db_number"), t["address"], t["data_type"])
         except Exception:
