@@ -14,6 +14,36 @@ Both themes use the same layout and controls; only colors change. Screenshots sh
 
 ## All changes delivered
 
+### Summary of Edits and Audits Completed in Codex
+
+During the Codex development and testing sessions, the RepoGen S7 application was comprehensively audited, refactored, and enhanced across its communication layer, persistence architecture, and frontend user experience:
+
+1. **S7 Protocol & Communication Layer Fixes**:
+   - **BOOL Write Normalization**: Fixed a critical bug where writing `"false"` or `"0"` evaluated to `True` via Python's native `bool(value)`. Implemented explicit boolean normalization (accepting case-insensitive `"true"`, `"false"`, `"1"`, `"0"` with whitespace stripping) and bit-level read-modify-write masking to preserve neighboring memory bits in S7 memory areas (DB, M).
+   - **Transport Loss Detection & Auto-Recovery**: Resolved an issue where a severed network socket left the UI displaying a stale green `CONNECTED` status. `s7_client.py` now monitors transport health, clears internal connection flags on socket exceptions, reports `CONNECTION LOST`, and initiates a throttled automatic reconnect cycle.
+   - **SZL CPU-State Query Decoupling**: Unsupported SZL queries (`0x8104` / `0x8404` on certain PLCs and simulators) are now gracefully handled as `UNKNOWN — CPU state unavailable` rather than treating diagnostic limits as fatal socket drops.
+   - **Strict Float32 Rounding & Equality**: Replaced loose float comparisons with true IEEE 754 single-precision packing via `struct.pack(">f", ...)` to prevent precision drift on large floating-point numbers, and rejected non-finite values (`NaN`, `Infinity`).
+
+2. **Persistence & Concurrency Hardening**:
+   - **Database Path Anchor (`repogen.db`)**: Fixed database disappearance when launching RepoGen from desktop shortcuts or foreign working directories by dynamically anchoring `DB_PATH` next to `sys.executable` (when frozen) or the project root (when running from source).
+   - **Reconnect Race Condition Prevention**: Added `generation` counters and `operation_lock` mutexes in `PLCManager` so obsolete background reconnect loops are immediately invalidated when a user explicitly clicks **Disconnect**.
+   - **Stale Data Integrity (`mark_stale`)**: Replaced misleading fresh-data displays and empty `"---"` dashes with explicit amber `STALE` tags and last-known timestamps whenever monitoring is paused or disconnected.
+   - **Relational Groups & Cascade Deletions**: Designed atomic SQLite schemas for custom tag groups (`groups`, `group_tags`, `preferences`), ensuring that deleting a group leaves original tags untouched, while deleting an original tag cleanly cascades.
+
+3. **UI/UX Transformation & Accessibility Overhaul**:
+   - **Tokenized Design System**: Eliminated transparent dialog bleed-through by unifying CSS variables into solid, opaque dark (`#141518` background, `#202228` cards) and light (`#f6f8fa`) palettes with 8px corner radii, 24px internal padding, and dimmed overlays.
+   - **Responsive Workspace**: Replaced crowded horizontal tabs with a clean sidebar and responsive layouts: a two-column view (sidebar + data table) for wide viewports (≥1000px) and a compact dropdown for narrow viewports (<1000px), fully functional at 800×600 minimum size.
+   - **Accessible Modals**: Implemented focus trapping (`Tab` / `Shift+Tab`), `Escape` key dismissal, accessible ARIA labels, and explicit `for`/`id` input bindings.
+   - **Write Value Modal Safety**: Added type-specific controls (discrete toggle switches for BOOLs, min/max bounds for integers/floats) and in-flight write locking (`isWriteInFlight`) to prevent duplicate packet submission.
+   - **Pywebview Bridge Guard**: Implemented `waitForApi()` with temporary control disabling to prevent runtime JavaScript errors when clicking buttons before `window.pywebview.api` finishes mounting.
+
+4. **Live Groups & Real-Time Trend Charts (v1.2.0 - v1.3.0)**:
+   - Added cross-table multi-tag grouping from Tag Tables via **Group selected tags**.
+   - Created the dedicated **Live Groups** workspace with real-time SVG sparklines: discrete square-wave pulses for BOOL states and rolling continuous curves with dynamic Min/Max scaling for numeric values.
+   - Integrated full Day/Night theme switcher with instant switching and local SQLite preference persistence.
+
+---
+
 ### v1.3.0 — Branded workspace and final fixes
 
 - Added the supplied blue P logo, including its red 3 artwork. It is a brand image, not a live notification count.
