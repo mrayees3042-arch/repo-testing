@@ -6,23 +6,40 @@
     <title>RepoGen - S7 Communication Tool</title>
     <link rel="stylesheet" href="styles.css">
     <link rel="stylesheet" href="premium.css">
+    <link rel="stylesheet" href="groups.css">
+    <link rel="stylesheet" href="workspace.css">
 </head>
 <body>
     <div class="app-container" id="app-container">
+        <aside class="app-sidebar" aria-label="Workspace navigation">
+            <div class="brand" title="RepoGen v1.3.0">
+                <img src="assets/brand-logo.png" alt="" class="brand-logo">
+                <span>RepoGen</span>
+            </div>
+            <nav class="tabs" role="tablist" aria-label="Main Navigation" aria-orientation="vertical">
+                <button class="tab-btn active" id="tab-btn-connection" role="tab" aria-selected="true" aria-controls="tab-connection" data-target="tab-connection"><span class="ui-icon icon-link" aria-hidden="true"></span>Connection</button>
+                <button class="tab-btn" id="tab-btn-tags" role="tab" aria-selected="false" aria-controls="tab-tags" data-target="tab-tags"><span class="ui-icon icon-table" aria-hidden="true"></span>Tag Tables</button>
+                <button class="tab-btn" id="tab-btn-groups" role="tab" aria-selected="false" aria-controls="tab-groups" data-target="tab-groups"><span class="ui-icon icon-users" aria-hidden="true"></span>Live Groups</button>
+            </nav>
+            <div class="theme-switch" role="group" aria-label="Colour theme">
+                <button id="theme-day" aria-label="Switch to day mode" aria-pressed="false"><span class="ui-icon icon-sun" aria-hidden="true"></span>Day</button>
+                <button id="theme-night" aria-label="Switch to night mode" aria-pressed="true"><span class="ui-icon icon-moon" aria-hidden="true"></span>Night</button>
+            </div>
+        </aside>
         <header class="app-header">
-            <h1>
-                RepoGen <span class="brand-caption">S7 workspace</span>
-                <span class="version-badge">v1.1.0</span>
-            </h1>
+            <h1 id="page-title">Connection</h1>
             <div id="connection-indicator" class="status-badge disconnected" role="status" aria-live="polite">DISCONNECTED</div>
         </header>
 
-        <nav class="tabs" role="tablist" aria-label="Main Navigation">
-            <button class="tab-btn active" id="tab-btn-connection" role="tab" aria-selected="true" aria-controls="tab-connection" data-target="tab-connection">Connection</button>
-            <button class="tab-btn" id="tab-btn-tags" role="tab" aria-selected="false" aria-controls="tab-tags" data-target="tab-tags">Tag Tables</button>
-        </nav>
-
         <main class="app-main">
+            <section id="tab-groups" class="tab-content" role="tabpanel" aria-labelledby="tab-btn-groups">
+                <div class="panel group-panel">
+                    <div class="group-heading"><div><p class="eyebrow">YOUR LIVE WORKSPACE</p><h2>Live Groups</h2><p class="panel-intro">The values you need. Together in one place.</p></div><button id="new-group" class="btn primary">New group</button></div>
+                    <div class="group-controls"><label for="group-select">Group</label><select id="group-select"></select><button id="edit-group" class="btn secondary">Customize</button><button id="monitor-group" class="btn primary">Start live view</button><details class="table-menu group-options"><summary>More</summary><div class="table-menu-body"><button id="delete-group" class="btn danger">Delete group</button></div></details></div>
+                    <p id="group-status" role="status" class="panel-intro" data-state="waiting">Create a group from your tags to get started.</p>
+                    <div id="group-cards" class="group-cards"></div>
+                </div>
+            </section>
             <!-- Connection Tab -->
             <section id="tab-connection" class="tab-content active" role="tabpanel" aria-labelledby="tab-btn-connection">
                 <div class="connection-grid">
@@ -32,23 +49,23 @@
                         <form id="connection-form" onsubmit="return false;">
                             <div class="form-group">
                                 <label for="ip-address">IP Address</label>
-                                <input type="text" id="ip-address" value="192.168.0.1" placeholder="192.168.0.1" autocomplete="off" spellcheck="false">
+                                <input type="text" id="ip-address" required value="192.168.0.1" placeholder="192.168.0.1" autocomplete="off" spellcheck="false">
                             </div>
                             
                             <div class="form-row">
                                 <div class="form-group half">
                                     <label for="rack">Rack</label>
-                                    <input type="number" id="rack" value="0" min="0" max="7">
+                                    <input type="number" id="rack" required value="0" min="0" max="7">
                                 </div>
                                 <div class="form-group half">
                                     <label for="slot">Slot</label>
-                                    <input type="number" id="slot" value="1" min="0" max="31">
+                                    <input type="number" id="slot" required value="1" min="0" max="31">
                                 </div>
                             </div>
 
                             <div class="form-group">
                                 <label for="port">TCP Port</label>
-                                <input type="number" id="port" value="102" min="1" max="65535">
+                                <input type="number" id="port" required value="102" min="1" max="65535">
                             </div>
 
                             <div class="main-conn-actions">
@@ -77,33 +94,36 @@
                     </div>
 
                     <!-- Status Panel -->
-                    <div class="panel status-panel">
-                        <h2>Device overview</h2><p class="panel-intro" id="connection-guidance">Connect to read CPU status and live values.</p>
+                    <div class="status-column"><div class="panel status-panel">
+                        <h2>Device overview</h2><p class="panel-intro sr-only" id="connection-guidance">Connect to read CPU status and live values.</p>
                         <div class="status-grid">
                             <div class="status-item">
-                                <span class="label">S7 State:</span>
+                                <span class="status-icon coral" aria-hidden="true"><span class="ui-icon icon-square-filled"></span></span><span class="label">S7 State</span>
                                 <span id="s7-state" class="value disconnected" role="status" aria-live="polite">DISCONNECTED</span>
                             </div>
                             <div class="status-item">
-                                <span class="label">CPU State:</span>
+                                <span class="status-icon violet" aria-hidden="true"><span class="ui-icon icon-cpu"></span></span><span class="label">CPU State</span>
                                 <span id="cpu-state" class="value unknown" role="status" aria-live="polite">UNKNOWN</span>
                             </div>
                             <div class="status-item">
-                                <span class="label">Network Ping:</span>
+                                <span class="status-icon teal" aria-hidden="true"><span class="ui-icon icon-wifi"></span></span><span class="label">Network Ping</span>
                                 <span id="ping-state" class="value unknown" role="status">NOT TESTED</span>
                             </div>
                             <div class="status-item">
-                                <span class="label">S7 Test:</span>
+                                <span class="status-icon blue" aria-hidden="true"><span class="ui-icon icon-file-text"></span></span><span class="label">S7 Test</span>
                                 <span id="s7-test-state" class="value unknown" role="status">NOT TESTED</span>
                             </div>
                         </div>
 
-                        <h2>Communication Log</h2>
+                    </div>
+                    <div class="panel log-panel">
+                        <h2>Communication log</h2>
                         <div class="log-container" tabindex="0" role="region" aria-label="Communication Log Output">
                             <ul id="log-list" aria-live="polite">
                                 <li class="log-empty">No connection activity yet.</li>
                             </ul>
                         </div>
+                    </div>
                     </div>
                 </div>
             </section>
@@ -134,7 +154,7 @@
                                     </select>
                                 </div>
                                 <button type="button" id="btn-toggle-poll" class="btn primary" disabled>Start Monitoring</button>
-                                <button type="button" id="btn-add-tag" class="btn secondary" disabled>+ Add Tag</button>
+                                <button type="button" id="group-selected" class="btn secondary">Group selected tags</button><button type="button" id="btn-add-tag" class="btn secondary" disabled>+ Add Tag</button>
                             </div>
                             <div class="tags-toolbar-right">
                                 <button type="button" id="btn-new-table" class="btn secondary compact-table-select-wrap">New Table</button>
@@ -361,6 +381,14 @@
         </div>
     </div>
 
-    <script src="app.js"></script>
+    <div id="modal-group" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="group-editor-title"><div class="modal-card">
+      <div class="modal-header"><h3 id="group-editor-title">Create a group</h3><button class="btn secondary btn-close-modal" aria-label="Close group editor">×</button></div>
+      <div class="modal-body"><label for="group-name">Group name</label><input id="group-name" maxlength="80" placeholder="e.g. Cooling system">
+      <label for="group-search">Find tags</label><input id="group-search" type="search" placeholder="Search by tag or table name">
+      <p class="help-text">Select tags from any table. Uncheck a tag to remove it from this group.</p><p id="group-count" role="status"></p><div id="group-picker"></div><p id="group-error" role="alert"></p></div>
+      <div class="modal-footer"><button class="btn secondary btn-close-modal">Cancel</button><button id="save-group" class="btn primary">Save group</button></div>
+    </div>
+    </div>
+    <script src="groups.js"></script><script src="app.js"></script>
 </body>
 </html>

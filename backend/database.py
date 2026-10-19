@@ -16,6 +16,7 @@ class Database:
     def __init__(self):
         self.conn = sqlite3.connect(DB_PATH, check_same_thread=False)
         self.conn.row_factory = sqlite3.Row
+        self.conn.execute("PRAGMA foreign_keys = ON")
         self._init_db()
 
     def _init_db(self):
@@ -46,7 +47,39 @@ class Database:
         )
         ''')
         
+        self.conn.executescript("""
+        CREATE TABLE IF NOT EXISTS tag_groups (id INTEGER PRIMARY KEY, name TEXT NOT NULL);
+        CREATE TABLE IF NOT EXISTS group_members (
+            group_id INTEGER REFERENCES tag_groups(id) ON DELETE CASCADE,
+            tag_id INTEGER REFERENCES tags(id) ON DELETE CASCADE,
+            PRIMARY KEY(group_id, tag_id));
+        CREATE TABLE IF NOT EXISTS preferences (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+        """)
         self.conn.commit()
+
+    def get_groups(self):
+        return [dict(r) for r in self.conn.execute("SELECT * FROM tag_groups ORDER BY name")]
+
+    def get_group_tags(self, group_id):
+        return [dict(r) for r in self.conn.execute("SELECT t.* FROM tags t JOIN group_members m ON t.id=m.tag_id WHERE m.group_id=? ORDER BY t.name", (group_id,))]
+
+    def save_group(self, group_id, name, tag_ids):
+        name = str(name).strip()
+        if not name or len(name) > 80:
+            raise ValueError("Use a group name between 1 and 80 characters.")
+        ids = list(dict.fromkeys(int(i) for i in tag_ids))
+        with self.conn:
+            if group_id is None:
+                group_id = self.conn.execute("INSERT INTO tag_groups(name) VALUES(?)", (name,)).lastrowid
+            elif self.conn.execute("UPDATE tag_groups SET name=? WHERE id=?", (name, group_id)).rowcount != 1:
+                raise ValueError("This group no longer exists.")
+            self.conn.execute("DELETE FROM group_members WHERE group_id=?", (group_id,))
+            self.conn.executemany("INSERT INTO group_members VALUES(?, ?)", [(group_id, i) for i in ids])
+        return group_id
+
+    def delete_group(self, group_id):
+        with self.conn:
+            self.conn.execute("DELETE FROM tag_groups WHERE id=?", (group_id,))
 
     # --- Tag Tables ---
     def get_all_tables(self):

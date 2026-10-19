@@ -14,6 +14,7 @@ class TagManager:
         self.live_tags = {}
         self.active_table_id = None
         self.polling_enabled = False
+        self.active_group_id = None
         self.diagnostics = {
             "last_cycle": "Never",
             "attempted": 0,
@@ -24,18 +25,21 @@ class TagManager:
 
     def set_active_table(self, table_id):
         self.active_table_id = table_id
-        self.live_tags.clear()
+        # Table navigation must not discard the live group's last known readings.
+        grouped = {t["id"] for t in self.db.get_group_tags(self.active_group_id)} if self.active_group_id is not None else set()
+        retained = {key: value for key, value in self.live_tags.items() if key in grouped}
+        self.live_tags = retained
         
         if table_id:
             tags = self.db.get_tags_for_table(table_id)
             for t in tags:
-                self.live_tags[t["id"]] = {
+                self.live_tags.setdefault(t["id"], {
                     "value": None,
                     "quality": "UNKNOWN",
                     "timestamp": None,
                     "error": None,
                     "latency": 0
-                }
+                })
 
     def mark_stale(self, reason):
         for tag_id, cached in list(self.live_tags.items()):
@@ -51,15 +55,15 @@ class TagManager:
 
     def poll_tags(self):
         """Called by plc_manager's background thread to read all active tags."""
-        if not self.polling_enabled:
+        if not self.polling_enabled and self.active_group_id is None:
             return
             
-        if not self.active_table_id:
-            self.diagnostics["last_cycle"] = time.strftime("%H:%M:%S")
-            self.diagnostics["last_error"] = "No active table selected"
-            return
-            
-        tags = self.db.get_tags_for_table(self.active_table_id)
+        tags_by_id = {}
+        if self.polling_enabled and self.active_table_id:
+            tags_by_id.update((t["id"], t) for t in self.db.get_tags_for_table(self.active_table_id))
+        if self.active_group_id is not None:
+            tags_by_id.update((t["id"], t) for t in self.db.get_group_tags(self.active_group_id))
+        tags = list(tags_by_id.values())
         attempted = len(tags)
         
         if attempted == 0:
@@ -140,6 +144,7 @@ class TagManager:
                 "value": value,
                 "quality": quality,
                 "timestamp": timestamp if quality == "GOOD" else None,
+                "sampled_at": time.time() if quality == "GOOD" else None,
                 "error": error,
                 "latency": latency
             }

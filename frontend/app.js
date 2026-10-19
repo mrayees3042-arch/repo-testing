@@ -22,6 +22,21 @@ document.addEventListener("DOMContentLoaded", () => {
     const tabBtns = document.querySelectorAll(".tab-btn");
     const tabContents = document.querySelectorAll(".tab-content");
     const appContainer = document.getElementById("app-container");
+    const pageNames = { 'tab-connection': 'Connection', 'tab-tags': 'Tag Tables', 'tab-groups': 'Live Groups' };
+    tabBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.getElementById('page-title').textContent = pageNames[btn.dataset.target];
+        });
+        btn.addEventListener('keydown', event => {
+            const directions = {ArrowDown:1, ArrowRight:1, ArrowUp:-1, ArrowLeft:-1};
+            if (!(event.key in directions) && event.key !== 'Home' && event.key !== 'End') return;
+            event.preventDefault();
+            const tabs = Array.from(tabBtns);
+            const next = event.key === 'Home' ? 0 : event.key === 'End' ? tabs.length-1 : (tabs.indexOf(btn)+directions[event.key]+tabs.length)%tabs.length;
+            tabs[next].focus(); tabs[next].click();
+        });
+    });
+
 
     // --- Elements: Tag Tables ---
     const tableSelect = document.getElementById("tag-table-select");
@@ -204,12 +219,10 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     // --- Connection Logic ---
-    const getConfig = () => ({
-        ip: ipInput.value.trim(),
-        rack: parseInt(rackInput.value, 10) || 0,
-        slot: parseInt(slotInput.value, 10) || 1,
-        port: parseInt(portInput.value, 10) || 102
-    });
+    const getConfig = () => {
+        if (!document.getElementById('connection-form').reportValidity()) return null;
+        return {ip: ipInput.value.trim(), rack: Number(rackInput.value), slot: Number(slotInput.value), port: Number(portInput.value)};
+    };
 
     const updateUIState = (status) => {
         if (!status) return;
@@ -287,6 +300,7 @@ document.addEventListener("DOMContentLoaded", () => {
     btnPing.addEventListener("click", async () => {
         const api = await waitForApi();
         const conf = getConfig();
+        if (!conf) return;
         pingStateEl.textContent = "TESTING...";
         pingStateEl.className = "value";
         const res = await api.ping(conf.ip, conf.rack, conf.slot, conf.port);
@@ -303,6 +317,7 @@ document.addEventListener("DOMContentLoaded", () => {
     btnTestS7.addEventListener("click", async () => {
         const api = await waitForApi();
         const conf = getConfig();
+        if (!conf) return;
         s7TestStateEl.textContent = "TESTING...";
         s7TestStateEl.className = "value";
         const res = await api.test_s7_communication(conf.ip, conf.rack, conf.slot, conf.port);
@@ -322,6 +337,7 @@ document.addEventListener("DOMContentLoaded", () => {
     btnConnect.addEventListener("click", async () => {
         const api = await waitForApi();
         const conf = getConfig();
+        if (!conf) return;
         btnConnect.disabled = true;
         indicator.textContent = "CONNECTING...";
         indicator.className = "status-badge connecting";
@@ -339,6 +355,7 @@ document.addEventListener("DOMContentLoaded", () => {
     btnReconnect.addEventListener("click", async () => {
         const api = await waitForApi();
         const conf = getConfig();
+        if (!conf) return;
         btnReconnect.disabled = true;
         indicator.textContent = "RECONNECTING...";
         indicator.className = "status-badge connecting";
@@ -456,7 +473,11 @@ document.addEventListener("DOMContentLoaded", () => {
             
             // Name cell (safe textContent prevents HTML injection / apostrophe issues)
             const tdName = document.createElement("td");
-            tdName.textContent = t.name;
+            const pick = document.createElement("input");
+            pick.type = "checkbox"; pick.className = "tag-pick";
+            pick.dataset.tagId = t.id; pick.setAttribute("aria-label", `Select ${t.name} for a group`);
+            tdName.appendChild(pick);
+            tdName.appendChild(document.createTextNode(t.name));
             tdName.style.fontWeight = "600";
             tr.appendChild(tdName);
             
@@ -1065,6 +1086,8 @@ document.addEventListener("DOMContentLoaded", () => {
             });
         }
     });
+
+    window.initGroups({waitForApi, openModal, closeModal});
 
     // Initialize
     waitForApi().then(() => {

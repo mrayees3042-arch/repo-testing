@@ -30,7 +30,7 @@ def get_base_path():
 def main():
     logger.info("========================================")
     logger.info("Starting RepoGen S7 Communication Tool")
-    logger.info("Version: 1.1.0")
+    logger.info("Version: 1.3.0")
     logger.info(f"Executable path: {sys.executable}")
     logger.info(f"Runtime log path: {log_file}")
     logger.info("========================================")
@@ -50,14 +50,14 @@ def main():
         sys.exit(1)
 
     window = webview.create_window(
-        title="RepoGen - S7 Communication Tool - v1.1.0",
+        title="RepoGen - S7 Communication Tool - v1.3.0",
         url=frontend_path,
         js_api=service,
-        width=1024,
-        height=768,
+        width=1280,
+        height=900,
         min_size=(800, 600),
         resizable=True,
-        background_color='#141518'
+        background_color='#111923'
     )
     
     # Start the webview application

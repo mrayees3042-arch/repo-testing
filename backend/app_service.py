@@ -182,3 +182,59 @@ class AppService:
             "success": success,
             "message": msg
         }
+
+    # Saved groups reference original tags; they never duplicate or write values.
+    def get_groups(self):
+        return self.manager.tag_manager.db.get_groups()
+
+    def get_group_tags(self, group_id):
+        return self.manager.tag_manager.db.get_group_tags(group_id)
+
+    def save_group(self, group_id, name, tag_ids):
+        try:
+            result = self.manager.tag_manager.db.save_group(group_id, name, tag_ids)
+            return {"success": True, "id": result}
+        except Exception as error:
+            return {"success": False, "message": str(error)}
+
+    def delete_group(self, group_id):
+        tm = self.manager.tag_manager
+        if tm.active_group_id == group_id:
+            tm.active_group_id = None
+        tm.db.delete_group(group_id)
+        return {"success": True}
+
+    def monitor_group(self, group_id):
+        tm = self.manager.tag_manager
+        tm.active_group_id = group_id
+        tm.mark_stale("Group monitoring changed")
+        return True
+
+    def get_group_snapshot(self, group_id):
+        tm = self.manager.tag_manager
+        plc = self.manager.get_plc("default")
+        connected = bool(plc and plc["state"] == "CONNECTED")
+        running = tm.active_group_id == group_id
+        result = []
+        for tag in tm.db.get_group_tags(group_id):
+            live = dict(tm.live_tags.get(tag["id"], {}))
+            if not connected or not running:
+                live["quality"] = "STALE" if live.get("value") is not None else "UNKNOWN"
+            try:
+                address = tag_utils.resolve_address(tag["area"], tag.get("db_number"), tag["address"], tag["data_type"])
+            except Exception:
+                address = tag["address"]
+            result.append({"tag": tag, "resolved_address": address, "live": live})
+        return {"connected": connected, "running": running, "tags": result}
+
+    def get_theme(self):
+        row = self.manager.tag_manager.db.conn.execute("SELECT value FROM preferences WHERE key='theme'").fetchone()
+        return row[0] if row else "dark"
+
+    def set_theme(self, theme):
+        if theme not in ("light", "dark"):
+            return False
+        db = self.manager.tag_manager.db
+        with db.conn:
+            db.conn.execute("INSERT OR REPLACE INTO preferences VALUES('theme', ?)", (theme,))
+        return True

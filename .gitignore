@@ -16,6 +16,13 @@ dist/
 
 # Volatile Runtime Database
 repogen.db
+*.db-wal
+*.db-shm
+work/*.db
+work/tmp*/
+work/ui_test_port.txt
+work/*.png
+node_modules/
 
 # OS Files
 .DS_Store
