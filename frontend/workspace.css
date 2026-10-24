@@ -110,3 +110,7 @@ input,select,textarea {border-radius:9px;background:var(--bg-dark);border-color:
  .theme-switch {grid-column:2;grid-row:1;margin:0;}.theme-switch button {min-height:36px;padding:4px 8px;}.theme-switch .ui-icon {display:none;}.app-header,.app-main {grid-column:1;}
  .app-header h1 {font-size:28px;}.status-badge {font-size:11px;padding:9px 12px;}.group-heading {gap:12px;}.group-heading h2 {font-size:23px;}
 }
+
+/* Full official brand lockup, including its tagline. */
+.app-sidebar .brand {flex-direction:column;align-items:stretch;gap:8px;padding:0 4px;text-align:center;white-space:normal;}
+.app-sidebar .brand-logo {display:block;width:100%;height:auto;aspect-ratio:1600/666;object-fit:contain;flex-shrink:0;border-radius:6px;}
