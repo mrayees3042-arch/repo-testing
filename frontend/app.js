@@ -363,10 +363,19 @@ document.addEventListener("DOMContentLoaded", () => {
         pollStatus();
     });
 
+    let isStatusPolling = false;
     const pollStatus = async () => {
-        const api = await waitForApi();
-        const status = await api.get_status();
-        updateUIState(status);
+        if (isStatusPolling) return;
+        isStatusPolling = true;
+        try {
+            const api = await waitForApi();
+            const status = await api.get_status();
+            updateUIState(status);
+        } catch (err) {
+            console.error("Status poll error:", err);
+        } finally {
+            isStatusPolling = false;
+        }
     };
 
     pollInterval = setInterval(pollStatus, 200);
@@ -1002,8 +1011,18 @@ document.addEventListener("DOMContentLoaded", () => {
             btnTogglePoll.classList.remove("primary");
             btnTogglePoll.classList.add("danger");
             
+            let isTagPolling = false;
             tagPollInterval = setInterval(async () => {
-                const response = await api.get_live_tags();
+                if (isTagPolling) return;
+                isTagPolling = true;
+                let response = null;
+                try {
+                    response = await api.get_live_tags();
+                } catch (err) {
+                    console.error("Live tag poll error:", err);
+                } finally {
+                    isTagPolling = false;
+                }
                 if (!response || !response.tags) return;
                 
                 const live = response.tags;

@@ -66,8 +66,13 @@ def parse_address(address_str, data_type, area=None, db_number=None):
         
         if area_upper and area_upper != "DB":
             raise ValueError(f"Address specifies Data Block 'DB{spec_db}', but selected area is '{area}'.")
-        if db_number is not None and int(db_number) != spec_db:
-            raise ValueError(f"Address specifies DB{spec_db}, which conflicts with selected DB Number {db_number}.")
+        if db_number is not None and str(db_number).strip() != "":
+            try:
+                if int(db_number) != spec_db:
+                    raise ValueError(f"Address specifies DB{spec_db}, which conflicts with selected DB Number {db_number}.")
+            except ValueError as e:
+                if "conflicts with selected" in str(e):
+                    raise
             
         raw_addr = remainder
 
@@ -157,7 +162,12 @@ def resolve_address(area, db_number, address_str, data_type):
     dt = data_type.upper()
     
     if area == "DB":
-        db_num = db_number if db_number is not None else 1
+        db_num = 1
+        if db_number is not None and str(db_number).strip() != "":
+            try:
+                db_num = int(db_number)
+            except ValueError:
+                db_num = 1
         if dt == "BOOL":
             prefix = "DBX"
             offset_str = f"{byte_offset}.{bit_offset}"

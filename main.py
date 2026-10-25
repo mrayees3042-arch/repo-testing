@@ -6,7 +6,17 @@ import logging
 
 # Configure file and stream logging
 app_dir = os.path.dirname(os.path.abspath(sys.executable if getattr(sys, 'frozen', False) else __file__))
-log_file = os.path.join(app_dir, "repogen_runtime.log")
+try:
+    if not os.access(app_dir, os.W_OK):
+        raise PermissionError("Directory read-only")
+    log_file = os.path.join(app_dir, "repogen_runtime.log")
+    with open(log_file, "a", encoding="utf-8"):
+        pass
+except Exception:
+    appdata = os.environ.get("LOCALAPPDATA") or os.environ.get("APPDATA") or os.path.expanduser("~")
+    fallback_dir = os.path.join(appdata, "RepoGen")
+    os.makedirs(fallback_dir, exist_ok=True)
+    log_file = os.path.join(fallback_dir, "repogen_runtime.log")
 
 logging.basicConfig(
     level=logging.INFO,

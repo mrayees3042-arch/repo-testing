@@ -104,7 +104,7 @@ class PLCManager:
                                 plc["last_logged_error"] = None
                             else:
                                 # CPU state query failed but socket is alive
-                                plc["cpu_state"] = "UNKNOWN â€” CPU state unavailable"
+                                plc["cpu_state"] = "UNKNOWN - CPU state unavailable"
                                 plc["cpu_state_error"] = state
 
                     elif plc["state"] in ["CONNECTION LOST", "CONNECTION FAILED"]:
@@ -133,7 +133,7 @@ class PLCManager:
                                             state_success, cpu_state, diag_msg = client.get_cpu_state()
                                         except Exception:
                                             state_success = True
-                                            cpu_state = "UNKNOWN â€” CPU state unavailable"
+                                            cpu_state = "UNKNOWN - CPU state unavailable"
 
                                         plc["cpu_state"] = cpu_state
                                         plc["cpu_state_error"] = None if state_success else cpu_state
@@ -226,7 +226,7 @@ class PLCManager:
             self.log_diagnostic(plc_id, "CPU STATE", "INFO", state_msg)
             
         test_client.disconnect()
-        return True, "S7 Communication Successful", latency, state_msg if state_success else "UNKNOWN â€” CPU state unavailable", None
+        return True, "S7 Communication Successful", latency, state_msg if state_success else "UNKNOWN - CPU state unavailable", None
         
     def connect(self, plc_id):
         plc = self.get_plc(plc_id)
@@ -250,7 +250,7 @@ class PLCManager:
             state_success, cpu_state, diag_msg = client.get_cpu_state()
             plc["state"] = "CONNECTED"
             plc["last_s7_success_time"] = datetime.datetime.now().strftime("%H:%M:%S")
-            plc["cpu_state"] = cpu_state if state_success else "UNKNOWN â€” CPU state unavailable"
+            plc["cpu_state"] = cpu_state if state_success else "UNKNOWN - CPU state unavailable"
             plc["cpu_state_error"] = None if state_success else cpu_state
             
             self.log_diagnostic(plc_id, "CONNECT", "PASS", f"Connected in {latency}ms (CPU: {plc['cpu_state']})")

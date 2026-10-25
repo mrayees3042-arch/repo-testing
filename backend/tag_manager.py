@@ -235,7 +235,7 @@ class TagManager:
             if data_type == "REAL":
                 read_f = float(val)
                 req_f = float(norm_value)
-                if not math.isfinite(read_f) or read_f != req_f:
+                if not math.isfinite(read_f) or not math.isclose(read_f, req_f, rel_tol=1e-5, abs_tol=1e-6):
                     return False, f"Write sent; verification failed. Read back: {read_f} (expected {req_f})"
             elif data_type == "BOOL":
                 val_bool = tag_utils.normalize_bool(val)

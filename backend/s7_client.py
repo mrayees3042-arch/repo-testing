@@ -87,7 +87,11 @@ class S7Client:
             elapsed_ms = int((time.time() - start_time) * 1000)
             
             if result.returncode == 0:
-                if "unreachable" in result.stdout.lower() or "timeout" in result.stdout.lower():
+                out_lower = result.stdout.lower()
+                if "ttl=" in out_lower:
+                    return True, "Success", elapsed_ms
+                if ("unreachable" in out_lower or "timeout" in out_lower or "timed out" in out_lower
+                    or "100% loss" in out_lower or "verlust" in out_lower or "perte" in out_lower):
                     return False, "Destination host unreachable", elapsed_ms
                 return True, "Success", elapsed_ms
             else:
@@ -128,11 +132,11 @@ class S7Client:
                 pass
             self.client = snap7.client.Client()
             
-            # Set timeouts
+            # Set timeouts (1500ms default prevents false drops on plant network jitter)
             try:
-                self.client.set_param(5, 200) # RecvTimeout
-                self.client.set_param(4, 200) # SendTimeout
-                self.client.set_param(3, 200) # PingTimeout
+                self.client.set_param(5, 1500) # RecvTimeout
+                self.client.set_param(4, 1500) # SendTimeout
+                self.client.set_param(3, 1000) # PingTimeout
             except Exception:
                 pass
                 
